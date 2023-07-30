@@ -4,7 +4,7 @@ Collection of tools to make development and working with classic Macintosh easie
 
 ## list
 
-- [DiskCopy 4.2 extractor](#DiskCopy-4.2-extractor)
+- [DiskCopy 4.2 extractor](#diskcopy-42-extractor)
 
 ### DiskCopy 4.2 extractor
 
