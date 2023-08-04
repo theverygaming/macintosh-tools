@@ -20,4 +20,19 @@ jobs:
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{env.BUILD_TYPE}}
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure
+
+    - name: Download test image
+      working-directory: ${{github.workspace}}/build
+      run: wget https://dl.vixen.link/72fh1c/sys097-dc42.img
+
+    - name: Test with image
+      working-directory: ${{github.workspace}}/build
+      run: |
+        ./bin/diskcopy-extract sys097-dc42.img sys097.img
+        ./bin/mfs-readonly sys097.img "System" out.bin
+        md5sum out.bin | grep "ab2ef78553b2fc5795024b92a655df24"
+        ./bin/mfs-readonly sys097.img "Note Pad File" out.bin
+        md5sum out.bin | grep "5947806fa9dd7f7b7d36b4db8a377c03"
+        ./bin/mfs-readonly sys097.img "SysVersion" out.bin
+        md5sum out.bin | grep "d41d8cd98f00b204e9800998ecf8427e"
