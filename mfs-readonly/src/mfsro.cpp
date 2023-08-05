@@ -37,15 +37,13 @@ static bool mfs_find_file(struct mfs_driver_state *ctx, struct mfs_dirent *diren
         ctx->read_disk(dirent, sizeof(struct mfs_dirent), ctx->disk_part_start + ctx->directory_start + offset);
         SWAP_MFS_DIRENT(*dirent);
 
-        if (dirent->flNam > 0) {
+        if (((dirent->flFlags & MFS_DIRENT_FLAGS_USED) != 0) && (dirent->flLgLen <= dirent->flPyLen) && (dirent->flRLgLen <= dirent->flRPyLen) &&
+            (dirent->flNam > 0) && (dirent->flType == 0)) {
             ctx->read_disk(fname_buf, dirent->flNam, ctx->disk_part_start + ctx->directory_start + offset + sizeof(struct mfs_dirent));
             if (mfs_namecmp(fname_buf, filename, dirent->flNam)) {
                 return true;
             }
         }
-
-        // TODO: sanity check dirent
-        // TODO: check if dirent is marked used
 
         // dirents are always aligned to 2-byte boundary
         if ((ctx->directory_start + offset + sizeof(struct mfs_dirent) + dirent->flNam) % 2 != 0) {
@@ -77,11 +75,28 @@ int init_mfs_driver(struct mfs_driver_state *ctx, void (*read_disk)(void *buf, s
     ctx->allocation_block_map_start = (SECTOR_SIZE * 2) + sizeof(struct mfs_mdb) + 27;
     ctx->directory_start = (uint32_t)ctx->mdb.drDirSt * SECTOR_SIZE;
 
-    // TODO: sanity checks
-    // TODO: sanity check if there are directory entries with value 0xFFF in allocation block map and if they match up with values in the MDB
-    // TODO: sanity check if drNmFls makes sense with drBlLen
-    // TODO: sanity check if drFreeBks makes sense with drNmAlBlks
-    // TODO: sanity check drClpSiz
+    // sanity checks
+    if ((ctx->mdb.drAlBlkSiz == 0) || (ctx->mdb.drAlBlkSiz % SECTOR_SIZE != 0) || (ctx->mdb.drClpSiz == 0) ||
+        (ctx->mdb.drClpSiz % ctx->mdb.drAlBlkSiz != 0) || (ctx->mdb.drFreeBks > ctx->mdb.drNmAlBlks) ||
+        ((ctx->mdb.drBlLen * ctx->mdb.drAlBlkSiz) < (ctx->mdb.drNmFls * sizeof(struct mfs_dirent)))) {
+        return -2;
+    }
+
+    uint16_t dirent_block_count = 0;
+    int state = 0;
+    for (uint16_t i = 2; i < (ctx->mdb.drNmAlBlks + 2); i++) {
+        if (get_alloc_block_map_value(ctx, i) == MFS_ALLOC_BLOCK_MAP_DIRENTS) {
+            dirent_block_count++;
+            if (state == 0) {
+                state = 1;
+            }
+        } else {
+            if (state == 1) {
+                return -3;
+            }
+        }
+    }
+    // TODO: more sanity checks on dirent_block_count
 
     return 0;
 }
@@ -136,7 +151,8 @@ uint32_t mfs_read(struct mfs_driver_state *ctx, struct mfs_file_handle *file, vo
             return 0;
         }
         current_block = get_alloc_block_map_value(ctx, current_block);
-        if ((current_block == MFS_ALLOC_BLOCK_MAP_FREE) || (current_block == MFS_ALLOC_BLOCK_MAP_DIRENTS)) {
+        if ((current_block == MFS_ALLOC_BLOCK_MAP_FREE) || (current_block == MFS_ALLOC_BLOCK_MAP_DIRENTS) ||
+            (current_block >= (ctx->mdb.drNmAlBlks + 2))) {
             return 0;
         }
     }
@@ -150,7 +166,8 @@ uint32_t mfs_read(struct mfs_driver_state *ctx, struct mfs_file_handle *file, vo
                 return count - leftover_read_count;
             }
             current_block = get_alloc_block_map_value(ctx, current_block);
-            if ((current_block == MFS_ALLOC_BLOCK_MAP_FREE) || (current_block == MFS_ALLOC_BLOCK_MAP_DIRENTS)) {
+            if ((current_block == MFS_ALLOC_BLOCK_MAP_FREE) || (current_block == MFS_ALLOC_BLOCK_MAP_DIRENTS) ||
+                (current_block >= (ctx->mdb.drNmAlBlks + 2))) {
                 return count - leftover_read_count;
             }
             current_block_offset = 0;
