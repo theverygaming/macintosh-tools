@@ -78,7 +78,7 @@ int init_mfs_driver(struct mfs_driver_state *ctx, void (*read_disk)(void *buf, s
     // sanity checks
     if ((ctx->mdb.drAlBlkSiz == 0) || (ctx->mdb.drAlBlkSiz % SECTOR_SIZE != 0) || (ctx->mdb.drClpSiz == 0) ||
         (ctx->mdb.drClpSiz % ctx->mdb.drAlBlkSiz != 0) || (ctx->mdb.drFreeBks > ctx->mdb.drNmAlBlks) ||
-        ((ctx->mdb.drBlLen * ctx->mdb.drAlBlkSiz) < (ctx->mdb.drNmFls * sizeof(struct mfs_dirent)))) {
+        ((ctx->mdb.drBlLen * SECTOR_SIZE) < (ctx->mdb.drNmFls * sizeof(struct mfs_dirent)))) {
         return -2;
     }
 
