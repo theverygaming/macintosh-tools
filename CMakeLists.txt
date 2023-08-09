@@ -7,5 +7,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 add_subdirectory("DiskCopy4.2-extractor")
 add_subdirectory("mfs-readonly")
+add_subdirectory("mfstools")
 
 include(CTest)

@@ -12,6 +12,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: set timezone
+      run: sudo timedatectl set-timezone UTC
+
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
@@ -36,3 +39,4 @@ jobs:
         md5sum out.bin | grep "5947806fa9dd7f7b7d36b4db8a377c03"
         ./bin/mfs-readonly sys097.img "SysVersion" out.bin
         md5sum out.bin | grep "d41d8cd98f00b204e9800998ecf8427e"
+        ./bin/mfstools-dir sys097.img | md5sum /dev/stdin | grep "510219a2c2b1181f0b9831a63d0dbc74"
