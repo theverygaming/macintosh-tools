@@ -6,9 +6,6 @@ struct mfs_driver_state {
     void (*read_disk)(void *buf, size_t count, size_t offset);
     size_t disk_part_start;
 
-    uint32_t allocation_block_map_start;
-    uint32_t directory_start;
-
     struct mfs_mdb mdb;
 };
 

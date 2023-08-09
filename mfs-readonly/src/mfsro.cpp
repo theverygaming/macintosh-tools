@@ -5,11 +5,12 @@
 #define SECTOR_SIZE (512)
 
 static uint16_t get_alloc_block_map_value(struct mfs_driver_state *ctx, uint16_t index) {
+    uint32_t allocation_block_map_start = (SECTOR_SIZE * 2) + sizeof(struct mfs_mdb) + 27;
     index &= 0xFFF;
     index -= 2;
     size_t allocmap_byte_offset = index + (index / 2); // * 1.5
     uint16_t value;
-    ctx->read_disk(&value, sizeof(value), ctx->disk_part_start + ctx->allocation_block_map_start + allocmap_byte_offset);
+    ctx->read_disk(&value, sizeof(value), ctx->disk_part_start + allocation_block_map_start + allocmap_byte_offset);
     value = swap_be(value);
     // value = (index & 0x01) != 0 ? value >> 4 : value & 0xFFF;
     value = (index & 0x01) != 0 ? value & 0xFFF : value >> 4;
@@ -31,29 +32,30 @@ static bool mfs_namecmp(const char *mfs_name, const char *c_str, size_t mfs_name
 }
 
 static bool mfs_find_file(struct mfs_driver_state *ctx, struct mfs_dirent *dirent, const char *filename) {
+    uint32_t directory_start = (uint32_t)ctx->mdb.drDirSt * SECTOR_SIZE;
     char *fname_buf = (char *)alloca(256);
     uint32_t offset = 0;
     for (uint16_t i = 0; i < ctx->mdb.drNmFls; i++) {
-        ctx->read_disk(dirent, sizeof(struct mfs_dirent), ctx->disk_part_start + ctx->directory_start + offset);
+        ctx->read_disk(dirent, sizeof(struct mfs_dirent), ctx->disk_part_start + directory_start + offset);
         SWAP_MFS_DIRENT(*dirent);
 
         if (((dirent->flFlags & MFS_DIRENT_FLAGS_USED) != 0) && (dirent->flLgLen <= dirent->flPyLen) && (dirent->flRLgLen <= dirent->flRPyLen) &&
             (dirent->flNam > 0) && (dirent->flType == 0)) {
-            ctx->read_disk(fname_buf, dirent->flNam, ctx->disk_part_start + ctx->directory_start + offset + sizeof(struct mfs_dirent));
+            ctx->read_disk(fname_buf, dirent->flNam, ctx->disk_part_start + directory_start + offset + sizeof(struct mfs_dirent));
             if (mfs_namecmp(fname_buf, filename, dirent->flNam)) {
                 return true;
             }
         }
 
         // dirents are always aligned to 2-byte boundary
-        if ((ctx->directory_start + offset + sizeof(struct mfs_dirent) + dirent->flNam) % 2 != 0) {
+        if ((directory_start + offset + sizeof(struct mfs_dirent) + dirent->flNam) % 2 != 0) {
             offset++;
         }
 
         // donno any other solution rn
         uint8_t term;
         do {
-            ctx->read_disk(&term, 1, ctx->disk_part_start + ctx->directory_start + offset + sizeof(struct mfs_dirent) + dirent->flNam);
+            ctx->read_disk(&term, 1, ctx->disk_part_start + directory_start + offset + sizeof(struct mfs_dirent) + dirent->flNam);
             if (term == 0) {
                 offset++;
             }
@@ -72,8 +74,6 @@ int init_mfs_driver(struct mfs_driver_state *ctx, void (*read_disk)(void *buf, s
     if (ctx->mdb.drSigWord != MFS_MDB_SIGNATURE) {
         return -1;
     }
-    ctx->allocation_block_map_start = (SECTOR_SIZE * 2) + sizeof(struct mfs_mdb) + 27;
-    ctx->directory_start = (uint32_t)ctx->mdb.drDirSt * SECTOR_SIZE;
 
     // sanity checks
     if ((ctx->mdb.drAlBlkSiz == 0) || (ctx->mdb.drAlBlkSiz % SECTOR_SIZE != 0) || (ctx->mdb.drClpSiz == 0) ||
